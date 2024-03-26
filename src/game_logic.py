@@ -1,6 +1,6 @@
 from __future__ import annotations
 from dataclasses import dataclass, field
-from typing import Tuple, Dict, Union
+from typing import List, Tuple, Dict, Union, Callable
 
 @dataclass
 class Vec2:
@@ -12,6 +12,21 @@ class Vec2:
     def pos(self) -> Tuple[int, int]:
         """Returns the position as a tuple."""
         return self.x, self.y
+
+    def apply(self, func: Callable[[int], int]) -> None:
+        """
+        Applies a function to `x` and `y` attributes, updating them with the result.
+
+        Args:
+            func: A function that modifies the value of `x` and `y`.
+        """
+        self.x = func(self.x)
+        self.y = func(self.y)
+
+    @staticmethod
+    def apply_stack(*vecs:Vec2, func:Callable=int):
+        for vec in vecs:
+            vec.apply(func)
 
 @dataclass
 class Cell:
@@ -42,35 +57,45 @@ class Cell:
 @dataclass
 class Section:
     """Represents a section (block) in a Sudoku puzzle."""
-    members: Dict[Tuple[int, int], Cell] = field(default_factory=dict)
+    members:Dict[Tuple[int, int], Cell] = field(default_factory=dict)
 
 class Board:
     """Represents the Sudoku puzzle board."""
-    def __init__(self, board_size: Vec2, section_size: Vec2):
-        """Initializes the board with the given dimensions."""
-        self.board_size = board_size
-        self.section_size = section_size
-        self.active_cells: Dict[Tuple[int, int], Cell] = {}
-        self.sections: Dict[Tuple[int, int], Section] = {}
+    def __init__(self, num_sections:Vec2, section_dimensions:Vec2):
+        """
+        Initializes the Sudoku board with specific dimensions.
+
+        :param num_sections: The number of sections across the x and y axes of the board.
+        :param section_dimensions: The dimensions (width and height) of each section.
+        """
+        self.num_sections = num_sections
+        self.section_dimensions = section_dimensions
+
+        # Calculate the total size of the board in cells
+        total_columns = self.num_sections.x * self.section_dimensions.x
+        total_rows = self.num_sections.y * self.section_dimensions.y
+
+        self.total_board_size =Vec2(total_columns, total_rows)
+        self.active_cells:Dict[Tuple[int, int], Cell] = {}
+        self.sections:Dict[Tuple[int, int], Section] = {}
+
         self._create_active_cells()
         self._divide_sections()
 
     def _create_active_cells(self) -> None:
         """Creates all active cells based on board size."""
-        columns = self.board_size.x * self.section_size.x
-        rows = self.board_size.y * self.section_size.y
-        for cell_y in range(rows):
-            for cell_x in range(columns):
+        for cell_y in range(self.total_board_size.y):
+            for cell_x in range(self.total_board_size.x):
                 global_pos = Vec2(cell_x, cell_y)
                 new_cell = Cell(global_pos)
                 self.active_cells[global_pos.pos] = new_cell
 
-    def _divide_single_section(self, start_column: Vec2) -> Section:
+    def _divide_single_section(self, start_column:Vec2) -> Section:
         """Divides and populates a single section."""
         section = Section()
         start = Vec2(start_column.x, start_column.y)
-        end = Vec2(start_column.x + self.section_size.x,
-                   start_column.y + self.section_size.y)
+        end = Vec2(start_column.x + self.section_dimensions.x,
+                   start_column.y + self.section_dimensions.y)
         for y_index, y in enumerate(range(start.y, end.y)):
             for x_index, x in enumerate(range(start.x, end.x)):
                 cell = self.active_cells[(x, y)]
@@ -78,21 +103,21 @@ class Board:
                 section.members[(x, y)] = cell
         return section
 
-    def _divide_board_row(self, section_row_start: int) -> List[Section]:
+    def _divide_board_row(self, section_row_start:int) -> List[Section]:
         """Divides a row of the board into sections."""
         section_current_column = 0
         section_result = []
-        for _ in range(self.board_size.x):
+        for _ in range(self.num_sections.x):
             start_pos = Vec2(section_current_column, section_row_start)
             section_result.append(self._divide_single_section(start_pos))
-            section_current_column += self.section_size.x
+            section_current_column += self.section_dimensions.x
         return section_result
 
     def _divide_sections(self) -> None:
         """Divides the entire board into sections."""
         section_row_start = 0
-        for board_row in range(self.board_size.y):
+        for board_row in range(self.num_sections.y):
             divided_rows = self._divide_board_row(section_row_start)
             for index, divided_section in enumerate(divided_rows):
                 self.sections[(index, board_row)] = divided_section
-            section_row_start += self.section_size.y
+            section_row_start += self.section_dimensions.y
