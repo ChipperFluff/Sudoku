@@ -9,7 +9,7 @@ class CellSprite(arcade.Sprite):
         self.logic_cell = logic_cell
 
         locked = "close" if self.logic_cell.locked else "open"
-        texture_path = f'src/resources/imgs/cell_{texture_setting["type"]}_{locked}.png'
+        texture_path = f'resources/imgs/cell_{texture_setting["type"]}_{locked}.png'
 
         super().__init__(filename=texture_path,
                          center_x=center_x,
