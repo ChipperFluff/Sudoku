@@ -1,23 +1,63 @@
+from __future__ import annotations
 import arcade
 from .game_logic import Board, Cell, Vec2
 from typing import List, Dict, Union
+import random
 
 class CellSprite(arcade.Sprite):
     SIZE = None
 
-    def __init__(self, center_x:float, center_y:float, logic_cell:Cell, texture_setting:dict):
-        self.logic_cell = logic_cell
+    from PIL import Image, ImageDraw, ImageFont
+import arcade
 
-        locked = "close" if self.logic_cell.locked else "open"
-        texture_path = f'resources/imgs/cell_{texture_setting["type"]}_{locked}.png'
+    def create_texture_with_text(original_image_path, text, font_size, output_path):
+        image = Image.open(original_image_path)
+        draw = ImageDraw.Draw(image)
+        font = ImageFont.truetype("arial.ttf", font_size)
+        text_width, text_height = draw.textsize(text, font=font)
+        x = (image.width - text_width) / 2
+        y = (image.height - text_height) / 2
+        draw.text((x, y), text, font=font, fill=(0, 0, 0))
+        image.save(output_path)
+        return arcade.load_texture(output_path)
 
-        super().__init__(filename=texture_path,
-                         center_x=center_x,
+    def update_texture(self):
+        self.texture = arcade.load_texture(self.texture_map[self.visual_state])
+
+        if self.logic_cell.state == None:
+            return
+
+        self.modify_texture_with_number(self.texture, self.logic_cell.state, 10)
+
+    def __init__(self, center_x:float, center_y:float, board_dimensions:Vec2, logic_cell:Cell, texture_setting:dict):
+        super().__init__(center_x=center_x,
                          center_y=center_y)
+        self.board_dimensions = board_dimensions
+
+        self.texture_map = {
+            "editable": f'resources/imgs/editable_cell_{texture_setting["type"]}.png',
+            "locked": f'resources/imgs/locked_cell_{texture_setting["type"]}.png',
+            "select": f'resources/imgs/select_cell_{texture_setting["type"]}.png',
+        }
+        self.logic_cell = logic_cell
+        self.visual_state = "locked" if self.logic_cell.locked else "editable"
+        self.update_texture()
 
         self.angle = texture_setting["rotation"]
         self.width = self.SIZE.x + 5
         self.height = self.SIZE.x + 5
+
+        self.point_a = Vec2(self.center_x-(self.width/2), (self.center_y-self.height/2))
+        self.point_b = Vec2(self.center_x+(self.width/2), (self.center_y+self.height/2))
+
+        self.selected = False
+
+    def mouse_update(self, mouse_pos:Vec2):
+        self.selected = mouse_pos.is_within(self.point_a, self.point_b)
+
+
+    def update(self):
+        pass
 
 class Game(arcade.Window):
     def __init__(self, board:Board):
@@ -27,6 +67,7 @@ class Game(arcade.Window):
         self.cell_sprites = []
         self.board_dimensions:Vec2 = None
         self.cell_size:Vec2 = None
+        self.selected_cell:CellSprite = None
         self._create_board()
 
     def _calculate_board_size(self):
@@ -92,7 +133,7 @@ class Game(arcade.Window):
 
                 logic_cell:Cell = self.board.active_cells[(index_x, index_y)]
                 texture_setting = self._choose_cell_texture(x_count, y_count)
-                sprite_cell = CellSprite(x, y, logic_cell, texture_setting)
+                sprite_cell = CellSprite(x, y, self.board_dimensions, logic_cell, texture_setting)
                 self.cell_sprites.append(sprite_cell)
 
                 if x_count >= section_dimensions.x:
@@ -101,10 +142,30 @@ class Game(arcade.Window):
             if y_count >= section_dimensions.y:
                     y_count = 0
 
+    def on_mouse_motion(self, x: int, y: int, dx: int, dy: int):
+        for cell in self.cell_sprites:
+            cell:CellSprite
+            cell.mouse_update(Vec2(x, y))
+            if cell.selected:
+                self.selected_cell = cell
+                break
+        else:
+            self.selected_cell = None
+
+    def on_mouse_press(self, x: int, y: int, button: int, modifiers: int):
+        if self.selected_cell is None:
+            return
+
+        print(f"pressed {self.selected_cell.logic_cell.global_pos}")
+
     def on_draw(self):
         arcade.start_render()
         for cell in self.cell_sprites:
             cell.draw()
+
+    def on_update(self, delta_time: float):
+        for cell in self.cell_sprites:
+            cell.update()
 
     def run(self):
         arcade.run()

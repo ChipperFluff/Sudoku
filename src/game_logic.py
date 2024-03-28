@@ -28,12 +28,16 @@ class Vec2:
         for vec in vecs:
             vec.apply(func)
 
+    def is_within(self, point_a: Vec2, point_b: Vec2):
+        return (min(point_a.x, point_b.x) <= self.x <= max(point_a.x, point_b.x)
+                and min(point_a.y, point_b.y) <= self.y <= max(point_a.y, point_b.y))
+
 @dataclass
 class Cell:
     """Represents a single cell in a Sudoku puzzle."""
     global_pos: Vec2
     local_pos: Vec2 = field(default=None)
-    state: str = field(default=None)
+    state: str = field(default=1)
     locked: bool = field(default=False)
 
     @classmethod
