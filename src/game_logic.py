@@ -1,6 +1,7 @@
 from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import List, Tuple, Dict, Union, Callable
+import random
 
 @dataclass
 class Vec2:
@@ -37,8 +38,8 @@ class Cell:
     """Represents a single cell in a Sudoku puzzle."""
     global_pos: Vec2
     local_pos: Vec2 = field(default=None)
-    state: str = field(default=1)
-    locked: bool = field(default=False)
+    state: str = field(default=None)
+    locked: bool = field(default_factory=lambda: random.random() > .8)
 
     @classmethod
     def load(cls, data: Dict[str, Union[Tuple[int, int], str, bool]]) -> Cell:

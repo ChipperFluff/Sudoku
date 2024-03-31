@@ -1,96 +1,104 @@
 from __future__ import annotations
-import arcade
 from .game_logic import Board, Cell, Vec2
 from typing import List, Dict, Union
+from enum import Enum
+import pygame
+import sys
 import random
 
-class CellSprite(arcade.Sprite):
-    SIZE = None
+pygame.init()
 
-    from PIL import Image, ImageDraw, ImageFont
-import arcade
+def to_pygame(coords, height):
+    """Convert coordinates into pygame coordinates (lower-left => top left)."""
+    return (coords[0], height - coords[1])
 
-    def create_texture_with_text(original_image_path, text, font_size, output_path):
-        image = Image.open(original_image_path)
-        draw = ImageDraw.Draw(image)
-        font = ImageFont.truetype("arial.ttf", font_size)
-        text_width, text_height = draw.textsize(text, font=font)
-        x = (image.width - text_width) / 2
-        y = (image.height - text_height) / 2
-        draw.text((x, y), text, font=font, fill=(0, 0, 0))
-        image.save(output_path)
-        return arcade.load_texture(output_path)
+class CellStates(Enum):
+    editable = "editable"
+    locked = "locked"
+    select = "select"
 
-    def update_texture(self):
-        self.texture = arcade.load_texture(self.texture_map[self.visual_state])
+class CellSprite:
+    SIZE:Vec2 = None
 
-        if self.logic_cell.state == None:
-            return
-
-        self.modify_texture_with_number(self.texture, self.logic_cell.state, 10)
-
-    def __init__(self, center_x:float, center_y:float, board_dimensions:Vec2, logic_cell:Cell, texture_setting:dict):
-        super().__init__(center_x=center_x,
-                         center_y=center_y)
-        self.board_dimensions = board_dimensions
-
-        self.texture_map = {
-            "editable": f'resources/imgs/editable_cell_{texture_setting["type"]}.png',
-            "locked": f'resources/imgs/locked_cell_{texture_setting["type"]}.png',
-            "select": f'resources/imgs/select_cell_{texture_setting["type"]}.png',
-        }
+    def __init__(self, game, screen, center_x:float, center_y:float, logic_cell:Cell, texture_setting:dict):
+        self.game = game
+        self.screen = screen
         self.logic_cell = logic_cell
-        self.visual_state = "locked" if self.logic_cell.locked else "editable"
-        self.update_texture()
+        self.text = None
+        
+        self.cell_mode:CellStates = CellStates.locked if self.logic_cell.locked else CellStates.editable
+        
+        self.pos = Vec2(*to_pygame((center_x, center_y), self.game.screen_size.y))
+        self.point_a = Vec2(center_x-(self.SIZE.x/2), (center_y-self.SIZE.y/2))
+        self.point_b = Vec2(center_x+(self.SIZE.x/2), (center_y+self.SIZE.y/2))
+        self.area = pygame.Rect(*self.point_a.pos, 
+                                *self.point_b.pos)
+        
+        self._load_textures(texture_setting)
+        self.create_surface()
+    
+    def _load_textures(self, texture_setting:dict):
+        textur_paths = {
+            CellStates.editable: f'resources/imgs/editable_cell_{texture_setting["type"]}.png',
+            CellStates.locked: f'resources/imgs/locked_cell_{texture_setting["type"]}.png',
+            CellStates.select: f'resources/imgs/select_cell_{texture_setting["type"]}.png',
+        }
+        self.texture_map = {}
+        for key, path in textur_paths.items():
+            texture = pygame.image.load(path)
+            texture = pygame.transform.rotate(texture, texture_setting["rotation"])
+            self.texture_map[key] = texture
+    
+    def create_surface(self):
+        self.texture = self.texture_map[self.cell_mode]
+        resized_texture = pygame.transform.scale(self.texture, self.SIZE.pos)
+        self.texture_surface = pygame.Surface(self.SIZE.pos)
+        self.texture_surface.blit(resized_texture, (0, 0))
 
-        self.angle = texture_setting["rotation"]
-        self.width = self.SIZE.x + 5
-        self.height = self.SIZE.x + 5
-
-        self.point_a = Vec2(self.center_x-(self.width/2), (self.center_y-self.height/2))
-        self.point_b = Vec2(self.center_x+(self.width/2), (self.center_y+self.height/2))
-
-        self.selected = False
-
-    def mouse_update(self, mouse_pos:Vec2):
-        self.selected = mouse_pos.is_within(self.point_a, self.point_b)
-
+    def set_char(self, char:str|int):
+        self.create_surface()
+        font = pygame.font.Font(None, 80)
+        self.text = font.render(str(char), True, (255, 255, 255))
+        text_pos = Vec2((self.SIZE.x/2)-(self.text.get_width()/2),
+                       (self.SIZE.y/2)-(self.text.get_height()/2))
+        self.texture_surface.blit(self.text, text_pos.pos)
 
     def update(self):
-        pass
+        self.create_surface()
+        if self.logic_cell.state is not None:
+            self.set_char(self.logic_cell.state)
 
-class Game(arcade.Window):
-    def __init__(self, board:Board):
-        super().__init__(title="Sudoku", height=900, width=900)
+    def draw(self):
+        self.screen.blit(self.texture_surface, self.point_a.pos)
+        
+        # debug
+        # pygame.draw.circle(self.screen, (255,0,0,0), self.point_a.pos, 6)
+        # pygame.draw.circle(self.screen, (0,255,0,0), self.point_b.pos, 6)
 
+class Game:
+    def _create_screen(self):
+        self.screen = pygame.display.set_mode(self.screen_size.pos)
+        pygame.display.set_caption("Sudok")
+        icon = pygame.image.load('resources/imgs/icon.png')
+        pygame.display.set_icon(icon)
+    
+    def __init__(self, screen_size:Vec2, board:Board):
+        self.game_active = True
+        self.screen_size = screen_size
+        self._create_screen()
+        
         self.board:Board = board
         self.cell_sprites = []
-        self.board_dimensions:Vec2 = None
-        self.cell_size:Vec2 = None
-        self.selected_cell:CellSprite = None
         self._create_board()
-
+        
+        self.selected_cell = None
+        
     def _calculate_board_size(self):
-        MARGIN_PERCENTAGES_VERTICAL = 400
-        MARGIN_PERCENTAGES_HORIZONTAL = 600
-
-        vertical_margin = (MARGIN_PERCENTAGES_VERTICAL/self.height) * 100
-        horizontal_margin = (MARGIN_PERCENTAGES_HORIZONTAL/self.width) * 100
-
-        field_start = Vec2(horizontal_margin, self.height-vertical_margin) # top left corner
-        field_stop = Vec2(self.width-horizontal_margin, vertical_margin) # bottom right corner
-        self.board_dimensions = Vec2(field_start, field_stop)
-
-        field_size = Vec2(field_stop.x - field_start.x,
-                          field_stop.y - field_start.y)
-
         total_cells = self.board.total_board_size
-
-        self.cell_size = Vec2(field_size.x / total_cells.x,
-                         field_size.y / total_cells.y)
+        self.cell_size = Vec2(self.screen_size.x / total_cells.x,
+                         self.screen_size.y / total_cells.y)
         CellSprite.SIZE = self.cell_size
-
-        Vec2.apply_stack(field_start, field_stop, field_size, self.cell_size)
+        self.cell_size.apply(int)
 
     def _choose_cell_texture(self, x_pos:int, y_pos:int) -> Dict[str, Union[str, int]]:
         section_dimensions = self.board.section_dimensions
@@ -124,16 +132,18 @@ class Game(arcade.Window):
         section_dimensions = self.board.section_dimensions
 
         y_count = 0
-        for index_y, y in enumerate(range(int(self.board_dimensions.x.y+(self.cell_size.y/2)), int(self.board_dimensions.y.y), self.cell_size.y)):
+        
+        for index_y, y in zip(range(0, self.board.total_board_size.y), range(int(self.cell_size.y/2), int(self.screen_size.y), self.cell_size.y)):
             y_count +=1
             x_count = 0
-
-            for index_x, x in enumerate(range(int(self.board_dimensions.x.x+(self.cell_size.x/2)), int(self.board_dimensions.y.x), self.cell_size.x)):
+            
+            for index_x, x in zip(range(0, self.board.total_board_size.x), range(int(self.cell_size.x/2), int(self.screen_size.x), self.cell_size.x)):
+                print(index_x, index_y)
                 x_count += 1
 
-                logic_cell:Cell = self.board.active_cells[(index_x, index_y)]
+                logic_cell:Cell = self.board.active_cells.get((index_x, index_y))
                 texture_setting = self._choose_cell_texture(x_count, y_count)
-                sprite_cell = CellSprite(x, y, self.board_dimensions, logic_cell, texture_setting)
+                sprite_cell = CellSprite(self, self.screen, x, y, logic_cell, texture_setting)
                 self.cell_sprites.append(sprite_cell)
 
                 if x_count >= section_dimensions.x:
@@ -142,30 +152,61 @@ class Game(arcade.Window):
             if y_count >= section_dimensions.y:
                     y_count = 0
 
-    def on_mouse_motion(self, x: int, y: int, dx: int, dy: int):
-        for cell in self.cell_sprites:
-            cell:CellSprite
-            cell.mouse_update(Vec2(x, y))
-            if cell.selected:
-                self.selected_cell = cell
-                break
-        else:
-            self.selected_cell = None
-
-    def on_mouse_press(self, x: int, y: int, button: int, modifiers: int):
-        if self.selected_cell is None:
-            return
-
-        print(f"pressed {self.selected_cell.logic_cell.global_pos}")
-
     def on_draw(self):
-        arcade.start_render()
         for cell in self.cell_sprites:
             cell.draw()
+        
+        # debug 
+        pygame.draw.circle(self.screen, (255,0,0,0), (10, 10), 6)
+        pygame.draw.circle(self.screen, (0,255,0,0), (self.screen_size.x-10, self.screen_size.y-10), 6)
 
-    def on_update(self, delta_time: float):
+    def on_update(self):
         for cell in self.cell_sprites:
             cell.update()
 
+    def on_cell_click(self, new_cell:CellSprite):
+        if new_cell.logic_cell.locked:
+            return
+
+        old_cell:CellSprite = self.selected_cell
+        if old_cell is not None:
+            old_cell.cell_mode = CellStates.editable
+            
+        new_cell.cell_mode = CellStates.select
+        self.selected_cell = new_cell
+
+
+
+    def _handle_events(self):
+        for event in pygame.event.get():
+            if event.type == pygame.QUIT:
+                self.game_active = False
+            if event.type == pygame.MOUSEBUTTONDOWN:
+                position = Vec2(*pygame.mouse.get_pos())
+                if event.button == 1:
+                    for cell in self.cell_sprites:
+                        cell:CellSprite
+                        if position.is_within(cell.point_a, cell.point_b):
+                            self.on_cell_click(cell)
+                            break
+            if event.type == pygame.KEYDOWN:
+                num = None
+                if pygame.K_KP1 <= event.key <= pygame.K_KP9:
+                    num = event.key - pygame.K_KP0
+                elif pygame.K_1 <= event.key <= pygame.K_9:
+                    num = event.key - pygame.K_0
+                if num is not None and self.selected_cell is not None:
+                    self.selected_cell.logic_cell.state = num
+
+    def _game_loop(self):
+        while self.game_active:
+            self._handle_events()
+            self.on_update()
+            self.screen.fill((0, 0, 0))  # Black background
+            self.on_draw()
+            pygame.display.update()
+
     def run(self):
-        arcade.run()
+        self._game_loop()
+        pygame.quit()
+        sys.exit()
