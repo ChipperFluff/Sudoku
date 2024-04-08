@@ -80,6 +80,9 @@ class BasicGame(View):
         self.cell_sprites = []
         self._create_board()
 
+        self.can_select_locked = False
+        self.can_edit_locked = False
+
         self.selected_cell:CellSprite = None
 
     def _calculate_board_size(self):
@@ -169,7 +172,7 @@ class BasicGame(View):
         self.select_cell(new_cell)
 
     def select_cell(self, new_cell:CellSprite):
-        if new_cell.logic_cell.locked:
+        if new_cell.logic_cell.locked and not self.can_select_locked:
             return
 
         old_cell:CellSprite = self.selected_cell
@@ -198,7 +201,7 @@ class BasicGame(View):
 
         # Counter to prevent infinite loops.
         attempt_counter = 0
-        max_attempts = 100  # Arbitrary large number to prevent infinite loops
+        max_attempts = self.board.total_board_size.height  # Arbitrary large number to prevent infinite loops
 
         while attempt_counter < max_attempts:
             next_pos = pointer.logic_cell.global_pos.add(dx, dy)
@@ -230,8 +233,6 @@ class BasicGame(View):
             # Revert to the initial selection if all attempts fail.
             self.deselect_cell()
             self.select_cell(initial_cell)
-
-
 
     def on_mouse_click(self, up:bool, pos:Vec2, button:int):
         found_cell:CellSprite = None
@@ -273,8 +274,13 @@ class BasicGame(View):
             num = key - pygame.K_KP0
         elif pygame.K_1 <= key <= pygame.K_9:
             num = key - pygame.K_0
-        if num is not None and self.selected_cell is not None:
-            self.selected_cell.logic_cell.state = num
+        if num is None:
+            return
+        if self.selected_cell is None:
+            return
+        if self.selected_cell.logic_cell.locked and not self.can_edit_locked:
+            return
+        self.selected_cell.logic_cell.state = num
 
 
 class Window(Window):
