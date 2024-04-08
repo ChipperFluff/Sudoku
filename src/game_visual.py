@@ -1,12 +1,10 @@
 from __future__ import annotations
 from .data_structures import Board, Cell, Vec2, Size, Area
+from .ui_manager import Window, View
 from typing import List, Dict, Union
 from enum import Enum
 import pygame
-import sys
-import random
 
-pygame.init()
 
 def to_pygame(coords, height):
     """Convert coordinates into pygame coordinates (lower-left => top left)."""
@@ -20,15 +18,15 @@ class CellStates(Enum):
 class CellSprite:
     SIZE:Size = None
 
-    def __init__(self, game, screen, center_x:float, center_y:float, logic_cell:Cell, texture_setting:dict):
+    def __init__(self, game, center_x:float, center_y:float, logic_cell:Cell, texture_setting:dict):
         self.game = game
-        self.screen = screen
+        self.screen = game.window.screen
         self.logic_cell = logic_cell
         self.text = None
 
         self.cell_mode:CellStates = CellStates.locked if self.logic_cell.locked else CellStates.editable
 
-        self.pos = Vec2(*to_pygame((center_x, center_y), self.game.screen_size.height))
+        self.pos = Vec2(*to_pygame((center_x, center_y), self.game.window.screen_size.height))
         self.point_a = Vec2(center_x-(self.SIZE.width/2), (center_y-self.SIZE.height/2))
         self.point_b = Vec2(center_x+(self.SIZE.width/2), (center_y+self.SIZE.height/2))
         self.area = pygame.Rect(*self.point_a.to_tuple,
@@ -69,24 +67,15 @@ class CellSprite:
             self.set_char(self.logic_cell.state)
 
     def draw(self):
-        self.screen.blit(self.texture_surface, self.point_a.to_tuple)
+        self.game.window.screen.blit(self.texture_surface, self.point_a.to_tuple)
 
         # debug
-        # pygame.draw.circle(self.screen, (255,0,0,0), self.point_a.to_tuple, 6)
-        # pygame.draw.circle(self.screen, (0,255,0,0), self.point_b.to_tuple, 6)
+        # pygame.draw.circle(self.game.window.screen, (255,0,0,0), self.point_a.to_tuple, 6)
+        # pygame.draw.circle(self.game.window.screen, (0,255,0,0), self.point_b.to_tuple, 6)
 
-class Game:
-    def _create_screen(self):
-        self.screen = pygame.display.set_mode(self.screen_size.to_tuple)
-        pygame.display.set_caption("Sudok")
-        icon = pygame.image.load('resources/imgs/icon.png')
-        pygame.display.set_icon(icon)
-
-    def __init__(self, screen_size:Size, board:Board):
-        self.game_active = True
-        self.screen_size = screen_size
-        self._create_screen()
-
+class Game(View):
+    def __init__(self, board:Board):
+        super().__init__()
         self.board:Board = board
         self.cell_sprites = []
         self._create_board()
@@ -95,8 +84,8 @@ class Game:
 
     def _calculate_board_size(self):
         total_cells = self.board.total_board_size
-        self.cell_size = Size(self.screen_size.width / total_cells.width,
-                         self.screen_size.height / total_cells.height)
+        self.cell_size = Size(self.window.screen_size.width / total_cells.width,
+                         self.window.screen_size.height / total_cells.height)
         CellSprite.SIZE = self.cell_size
         self.cell_size.apply(int)
 
@@ -132,16 +121,16 @@ class Game:
         section_dimensions = self.board.section_dimensions
 
         y_count = 0
-        for index_y, y in zip(range(0, self.board.total_board_size.height), range(int(self.cell_size.height/2), int(self.screen_size.height), self.cell_size.height)):
+        for index_y, y in zip(range(0, self.board.total_board_size.height), range(int(self.cell_size.height/2), int(self.window.screen_size.height), self.cell_size.height)):
             y_count +=1
             x_count = 0
 
-            for index_x, x in zip(range(0, self.board.total_board_size.width), range(int(self.cell_size.width/2), int(self.screen_size.width), self.cell_size.width)):
+            for index_x, x in zip(range(0, self.board.total_board_size.width), range(int(self.cell_size.width/2), int(self.window.screen_size.width), self.cell_size.width)):
                 x_count += 1
 
                 logic_cell:Cell = self.board.active_cells.get((index_x, index_y))
                 texture_setting = self._choose_cell_texture(x_count, y_count)
-                sprite_cell = CellSprite(self, self.screen, x, y, logic_cell, texture_setting)
+                sprite_cell = CellSprite(self, x, y, logic_cell, texture_setting)
                 self.cell_sprites.append(sprite_cell)
 
                 if x_count >= section_dimensions.width:
@@ -150,13 +139,13 @@ class Game:
             if y_count >= section_dimensions.height:
                     y_count = 0
 
-    def on_draw(self):
+    def on_draw(self, screen):
         for cell in self.cell_sprites:
             cell.draw()
 
         # debug
-        # pygame.draw.circle(self.screen, (255,0,0,0), (10, 10), 6)
-        # pygame.draw.circle(self.screen, (0,255,0,0), (self.screen_size.x-10, self.screen_size.y-10), 6)
+        # pygame.draw.circle(screen, (255,0,0,0), (10, 10), 6)
+        # pygame.draw.circle(screen, (0,255,0,0), (self.window.screen_size.x-10, self.window.screen_size.y-10), 6)
 
     def on_update(self):
         for cell in self.cell_sprites:
@@ -173,36 +162,29 @@ class Game:
         new_cell.cell_mode = CellStates.select
         self.selected_cell = new_cell
 
-    def _handle_events(self):
-        for event in pygame.event.get():
-            if event.type == pygame.QUIT:
-                self.game_active = False
-            if event.type == pygame.MOUSEBUTTONDOWN:
-                position = Vec2(*pygame.mouse.get_pos())
-                if event.button == 1:
-                    for cell in self.cell_sprites:
-                        cell:CellSprite
-                        if position.is_within(cell.point_a, cell.point_b):
-                            self.on_cell_click(cell)
-                            break
-            if event.type == pygame.KEYDOWN:
-                num = None
-                if pygame.K_KP1 <= event.key <= pygame.K_KP9:
-                    num = event.key - pygame.K_KP0
-                elif pygame.K_1 <= event.key <= pygame.K_9:
-                    num = event.key - pygame.K_0
-                if num is not None and self.selected_cell is not None:
-                    self.selected_cell.logic_cell.state = num
+    def on_mouse_click(self, up:bool, pos:Vec2, button:int):
+        if button != 1:
+            return
+        for cell in self.cell_sprites:
+            cell:CellSprite
+            if pos.is_within(cell.point_a, cell.point_b):
+                self.on_cell_click(cell)
+                break
 
-    def _game_loop(self):
-        while self.game_active:
-            self._handle_events()
-            self.on_update()
-            self.screen.fill((0, 0, 0))  # Black background
-            self.on_draw()
-            pygame.display.update()
+    def on_keyboard(self, up:bool, key):
+        num = None
+        if pygame.K_KP1 <= key <= pygame.K_KP9:
+            num = key - pygame.K_KP0
+        elif pygame.K_1 <= key <= pygame.K_9:
+            num = key - pygame.K_0
+        if num is not None and self.selected_cell is not None:
+            self.selected_cell.logic_cell.state = num
 
-    def run(self):
-        self._game_loop()
-        pygame.quit()
-        sys.exit()
+class Window(Window):
+    def __init__(self, screen_size:Size):
+        super().__init__(screen_size, "Sudoku", r"resources\imgs\icon.png", 15)
+        num_sections = Size(3, 3)
+        section_dimensions = Size(3, 3)
+        board = Board(num_sections, section_dimensions)
+        game_view = Game(board)
+        self.show_view(game_view)
