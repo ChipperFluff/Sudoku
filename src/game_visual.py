@@ -282,7 +282,6 @@ class BasicGame(View):
             return
         self.selected_cell.logic_cell.state = num
 
-
 class Window(Window):
     def __init__(self, screen_size:Size):
         super().__init__(screen_size, "Sudoku", r"resources\imgs\icon.png", 15)
