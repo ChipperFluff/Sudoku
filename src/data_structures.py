@@ -1,6 +1,10 @@
 from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import List, Tuple, Dict, Union, Callable
+try:
+    from .game_visual import CellSprite
+except ImportError:
+    pass
 import random
 
 @dataclass
@@ -13,6 +17,9 @@ class Vec2:
     def to_tuple(self) -> Tuple[int, int]:
         """Returns the position as a tuple."""
         return self.x, self.y
+
+    def add(self, dx, dy):
+        return Vec2(self.x+dx, self.y+dy)
 
     def apply(self, func: Callable[[int], int]) -> None:
         """
@@ -60,6 +67,7 @@ class Color:
 class Cell:
     """Represents a single cell in a Sudoku puzzle."""
     global_pos: Vec2
+    sprite:CellSprite = field(default=None)
     local_pos: Vec2 = field(default=None)
     state: str = field(default=None)
     locked: bool = field(default=False)

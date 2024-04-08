@@ -73,14 +73,14 @@ class CellSprite:
         # pygame.draw.circle(self.game.window.screen, (255,0,0,0), self.point_a.to_tuple, 6)
         # pygame.draw.circle(self.game.window.screen, (0,255,0,0), self.point_b.to_tuple, 6)
 
-class Game(View):
+class BasicGame(View):
     def __init__(self, board:Board):
         super().__init__()
         self.board:Board = board
         self.cell_sprites = []
         self._create_board()
 
-        self.selected_cell = None
+        self.selected_cell:CellSprite = None
 
     def _calculate_board_size(self):
         total_cells = self.board.total_board_size
@@ -131,6 +131,7 @@ class Game(View):
                 logic_cell:Cell = self.board.active_cells.get((index_x, index_y))
                 texture_setting = self._choose_cell_texture(x_count, y_count)
                 sprite_cell = CellSprite(self, x, y, logic_cell, texture_setting)
+                logic_cell.sprite = sprite_cell
                 self.cell_sprites.append(sprite_cell)
 
                 if x_count >= section_dimensions.width:
@@ -152,6 +153,22 @@ class Game(View):
             cell.update()
 
     def on_cell_click(self, new_cell:CellSprite):
+        if self.selected_cell is None:
+            self.select_cell(new_cell)
+            return
+
+        old_cell = self.selected_cell
+        old_cell_pos = old_cell.logic_cell.global_pos.to_tuple
+        new_cell_pos = new_cell.logic_cell.global_pos.to_tuple
+
+        if old_cell_pos == new_cell_pos:
+            self.deselect_cell()
+            return
+
+        self.deselect_cell()
+        self.select_cell(new_cell)
+
+    def select_cell(self, new_cell:CellSprite):
         if new_cell.logic_cell.locked:
             return
 
@@ -162,16 +179,95 @@ class Game(View):
         new_cell.cell_mode = CellStates.select
         self.selected_cell = new_cell
 
-    def on_mouse_click(self, up:bool, pos:Vec2, button:int):
-        if button != 1:
+    def deselect_cell(self):
+        if self.selected_cell is None:
             return
+        self.selected_cell.cell_mode = CellStates.editable
+        self.selected_cell = None
+
+    def move_selection(self, dx: int, dy: int):
+        current_cell = self.selected_cell
+        if current_cell is None:
+            print("No cell is currently selected.")
+            return
+
+        # Remember the initial position in case we need to revert the selection.
+        initial_cell = current_cell
+
+        pointer = current_cell
+
+        # Counter to prevent infinite loops.
+        attempt_counter = 0
+        max_attempts = 100  # Arbitrary large number to prevent infinite loops
+
+        while attempt_counter < max_attempts:
+            next_pos = pointer.logic_cell.global_pos.add(dx, dy)
+
+            # Ensuring .to_tuple() is called correctly if it's a method.
+            next_cell = self.board.active_cells.get(next_pos.to_tuple() if callable(next_pos.to_tuple) else next_pos.to_tuple)
+
+            if next_cell is None:
+                print(f"Reached edge or empty spot at {next_pos}. No movement due to locked cells or board edge.")
+                # Instead of re-selecting the current cell, revert to the initial cell.
+                self.deselect_cell()
+                self.select_cell(initial_cell)
+                return
+            next_cell = next_cell.sprite
+
+            if not next_cell.logic_cell.locked:
+                print(f"Moving to next cell at {next_pos}.")
+                self.deselect_cell()
+                self.select_cell(next_cell)
+                return
+            else:
+                print(f"Cell at {next_pos} is locked. Trying next cell.")
+
+            pointer = next_cell
+            attempt_counter += 1
+
+        if attempt_counter >= max_attempts:
+            print("Max attempts reached. Stopping to prevent infinite loop.")
+            # Revert to the initial selection if all attempts fail.
+            self.deselect_cell()
+            self.select_cell(initial_cell)
+
+
+
+    def on_mouse_click(self, up:bool, pos:Vec2, button:int):
+        found_cell:CellSprite = None
         for cell in self.cell_sprites:
             cell:CellSprite
             if pos.is_within(cell.point_a, cell.point_b):
-                self.on_cell_click(cell)
+                found_cell = cell
                 break
+        if found_cell is None:
+            return
+        if button == 1 and not up:
+            found_cell.logic_cell.locked = True
+            found_cell.cell_mode = CellStates.locked
+        if button == 3 and not up:
+            self.on_cell_click(found_cell)
 
     def on_keyboard(self, up:bool, key):
+        if key == pygame.K_ESCAPE:
+            self.deselect_cell()
+            return
+        if key == pygame.K_DELETE or key == pygame.K_BACKSPACE:
+            if self.selected_cell is None:
+                return
+            self.selected_cell.logic_cell.state = None
+            return
+
+        if not up:
+            if key == pygame.K_LEFT:  # Left arrow key
+                self.move_selection(-1, 0)
+            elif key == pygame.K_RIGHT:  # Right arrow key
+                self.move_selection(1, 0)
+            elif key == pygame.K_UP:  # Up arrow key
+                self.move_selection(0, -1)
+            elif key == pygame.K_DOWN:  # Down arrow key
+                self.move_selection(0, 1)
+
         num = None
         if pygame.K_KP1 <= key <= pygame.K_KP9:
             num = key - pygame.K_KP0
@@ -180,11 +276,12 @@ class Game(View):
         if num is not None and self.selected_cell is not None:
             self.selected_cell.logic_cell.state = num
 
+
 class Window(Window):
     def __init__(self, screen_size:Size):
         super().__init__(screen_size, "Sudoku", r"resources\imgs\icon.png", 15)
         num_sections = Size(3, 3)
         section_dimensions = Size(3, 3)
         board = Board(num_sections, section_dimensions)
-        game_view = Game(board)
+        game_view = BasicGame(board)
         self.show_view(game_view)
