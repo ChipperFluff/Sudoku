@@ -14,6 +14,7 @@ class CellStates(Enum):
     editable = "editable"
     locked = "locked"
     select = "select"
+    error = "error"
 
 class CellSprite:
     SIZE:Size = None
@@ -34,12 +35,14 @@ class CellSprite:
 
         self._load_textures(texture_setting)
         self.create_surface()
+        self.selected = False
 
     def _load_textures(self, texture_setting:dict):
         textur_paths = {
             CellStates.editable: f'resources/imgs/editable_cell_{texture_setting["type"]}.png',
             CellStates.locked: f'resources/imgs/locked_cell_{texture_setting["type"]}.png',
             CellStates.select: f'resources/imgs/select_cell_{texture_setting["type"]}.png',
+            CellStates.error: f'resources/imgs/error_cell_{texture_setting["type"]}.png',
         }
         self.texture_map = {}
         for key, path in textur_paths.items():
@@ -155,6 +158,40 @@ class BasicGame(View):
         for cell in self.cell_sprites:
             cell.update()
 
+        self.check_board()
+
+    def check_section(self, objects):
+        state_map = {}  # Dictionary to map state to objects with that state
+        duplicates = []  # List to hold objects with duplicate states
+
+        for obj in objects:
+            state = obj.state
+            # Skip the object if its state is None
+            if state is None:
+                continue
+            if state in state_map:
+                state_map[state].append(obj)
+            else:
+                state_map[state] = [obj]
+
+        for state_objects in state_map.values():
+            if len(state_objects) > 1:  # If more than one object shares the same state
+                duplicates.extend(state_objects)  # Add all objects with this state to the duplicates list
+
+        return duplicates
+
+    def check_board(self):
+        for pos, section in self.board.sections.items():
+            for cell in section.members.values():
+                if cell.locked or cell.sprite.selected:
+                    continue
+                cell.sprite.cell_mode = CellStates.editable
+            wrong = self.check_section(section.members.values())
+            for cell in wrong:
+                if cell.locked or cell.sprite.selected:
+                    continue
+                cell.sprite.cell_mode = CellStates.error
+
     def on_cell_click(self, new_cell:CellSprite):
         if self.selected_cell is None:
             self.select_cell(new_cell)
@@ -181,10 +218,12 @@ class BasicGame(View):
 
         new_cell.cell_mode = CellStates.select
         self.selected_cell = new_cell
+        self.selected_cell.selected = True
 
     def deselect_cell(self):
         if self.selected_cell is None:
             return
+        self.selected_cell.selected = False
         self.selected_cell.cell_mode = CellStates.editable
         self.selected_cell = None
 
