@@ -159,8 +159,6 @@ class BasicGame(View):
         for cell in self.cell_sprites:
             cell.update()
 
-        self.check_board()
-
     def check_list_for_duplicates(self, objects):
         state_map = {}  # Dictionary to map state to objects with that state
         duplicates = []  # List to hold objects with duplicate states
@@ -234,6 +232,7 @@ class BasicGame(View):
         new_cell.cell_mode = CellStates.select
         self.selected_cell = new_cell
         self.selected_cell.selected = True
+        self.check_board()
 
     def deselect_cell(self):
         if self.selected_cell is None:
@@ -241,6 +240,7 @@ class BasicGame(View):
         self.selected_cell.selected = False
         self.selected_cell.cell_mode = CellStates.editable
         self.selected_cell = None
+        self.check_board()
 
     def move_selection(self, dx: int, dy: int):
         current_cell = self.selected_cell
@@ -335,6 +335,7 @@ class BasicGame(View):
         if self.selected_cell.logic_cell.locked and not self.can_edit_locked:
             return
         self.selected_cell.logic_cell.state = num
+        self.check_board()
 
 class Window(Window):
     def __init__(self, screen_size:Size):
