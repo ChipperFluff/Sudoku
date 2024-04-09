@@ -1,1 +1,0 @@
-pyinstaller main.py --name sudoku --version-file src/version.txt --icon resources\imgs\icon.ico --onefile --noconsole
