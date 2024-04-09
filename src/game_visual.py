@@ -360,11 +360,24 @@ class BasicGame(View):
         self.selected_cell.set_state(num)
         self.check_board()
 
+class InfoMenu(View):
+    def play_game(self):
+        board = Board(Size(3,3), Size(3,3))
+        game = BasicGame(board)
+        self.window.show_view(game)
+        print("play")
+
+    def on_keyboard(self, up, key):
+        if key == pygame.K_SPACE:
+            self.play_game()
+
+    def on_draw(self, screen):
+        x = self.window.screen_size.width / 2
+        self.draw_text(screen, x, 50, "First release 1.0.0", 50)
+        self.draw_text(screen, x, 200, """Dive into Sudoku Creation & Play\n\nSelect & Input: Use clicks or keyboard\nto choose cells. Fill with numeric keys.\n\nNavigation: Use arrow keys for smooth\ncell shifting.\n\nPuzzle Design - Locking: Press 'L' to\nlock/unlock cells for setting challenges.\n\nPlay: Press space to start.""", 22)
+
 class Window(Window):
     def __init__(self, screen_size:Size):
         super().__init__(screen_size, "Sudoku", r"resources\imgs\icon.png", 15)
-        num_sections = Size(3, 3)
-        section_dimensions = Size(3, 3)
-        board = Board(num_sections, section_dimensions)
-        game_view = BasicGame(board)
-        self.show_view(game_view)
+        info_view = InfoMenu()
+        self.show_view(info_view)

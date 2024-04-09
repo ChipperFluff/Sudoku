@@ -12,6 +12,12 @@ class View:
         if self.window is None:
             raise TypeError("window not initilized")
 
+    def draw_text(self, screen, center_x, center_y, text, size):
+        font = pygame.font.SysFont(None, size)
+        text_surface = font.render(text, True, (255, 255, 255))
+        text_rect = text_surface.get_rect(center=(center_x, center_y))
+        screen.blit(text_surface, text_rect)
+
     def on_update(self):
         pass
 
@@ -39,6 +45,7 @@ class Window:
 
         self._window_active = True
         self._active_view:View = self
+        self.delta_time = 1
 
         if Window._INSTANCE is not None:
             raise Exception("window class duplicated")
@@ -98,7 +105,7 @@ class Window:
 
     def _game_loop(self):
         while self._window_active:
-            self._clock.tick()
+            self.delta_time = self._clock.tick()
             if self._active_view is None:
                 continue
 
