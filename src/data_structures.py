@@ -102,6 +102,7 @@ class Board:
 
         self._create_active_cells()
         self._divide_sections()
+        self._create_lines()
 
     def _check_size_param(self, num_sections:Size, section_dimensions:Size):
         if num_sections.height > 0 and num_sections.height > 0:
@@ -118,6 +119,22 @@ class Board:
                 global_pos = Vec2(cell_x, cell_y)
                 new_cell = Cell(global_pos)
                 self.active_cells[global_pos.to_tuple] = new_cell
+
+    def _create_lines(self):
+        # Initialize lists for horizontal and vertical lines
+        self.horizontal_lines = []
+        self.vertical_lines = []
+
+        # Populate horizontal lines
+        for y in range(self.total_board_size.height):
+            row = [self.active_cells[(x, y)] for x in range(self.total_board_size.width)]
+            self.horizontal_lines.append(row)
+
+        # Populate vertical lines
+        for x in range(self.total_board_size.width):
+            column = [self.active_cells[(x, y)] for y in range(self.total_board_size.height)]
+            self.vertical_lines.append(column)
+
 
     def _divide_single_section(self, start_column:Vec2) -> Section:
         """Divides and populates a single section."""

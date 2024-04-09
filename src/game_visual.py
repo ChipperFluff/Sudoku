@@ -4,6 +4,7 @@ from .ui_manager import Window, View
 from typing import List, Dict, Union
 from enum import Enum
 import pygame
+import sys
 
 
 def to_pygame(coords, height):
@@ -160,7 +161,7 @@ class BasicGame(View):
 
         self.check_board()
 
-    def check_section(self, objects):
+    def check_list_for_duplicates(self, objects):
         state_map = {}  # Dictionary to map state to objects with that state
         duplicates = []  # List to hold objects with duplicate states
 
@@ -180,17 +181,31 @@ class BasicGame(View):
 
         return duplicates
 
-    def check_board(self):
-        for pos, section in self.board.sections.items():
-            for cell in section.members.values():
-                if cell.locked or cell.sprite.selected:
-                    continue
-                cell.sprite.cell_mode = CellStates.editable
-            wrong = self.check_section(section.members.values())
-            for cell in wrong:
-                if cell.locked or cell.sprite.selected:
-                    continue
+    def mark_errors(self, wrong_cells):
+        for cell in wrong_cells:
+            if not cell.locked and not cell.sprite.selected:
                 cell.sprite.cell_mode = CellStates.error
+
+    def check_sections(self):
+        for pos, section in self.board.sections.items():
+            wrong = self.check_list_for_duplicates(section.members.values())
+            self.mark_errors(wrong)
+
+    def check_lines(self, lines):
+        for line in lines:
+            wrong_cells = self.check_list_for_duplicates(line)
+            self.mark_errors(wrong_cells)
+
+    def set_cells_to_editable(self):
+        for cell in self.board.active_cells.values():
+            if not cell.locked and not cell.sprite.selected:
+                cell.sprite.cell_mode = CellStates.editable
+
+    def check_board(self):
+        self.set_cells_to_editable()
+        self.check_sections()
+        self.check_lines(self.board.horizontal_lines)
+        self.check_lines(self.board.vertical_lines)
 
     def on_cell_click(self, new_cell:CellSprite):
         if self.selected_cell is None:
