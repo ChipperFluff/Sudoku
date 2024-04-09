@@ -101,6 +101,7 @@ class BasicGame(View):
 
         self.can_select_locked = False
         self.can_edit_locked = False
+        self.editor = False
 
         self.selected_cell:CellSprite = None
 
@@ -165,6 +166,9 @@ class BasicGame(View):
     def on_draw(self, screen):
         for cell in self.cell_sprites:
             cell.draw()
+        if self.editor:
+            pygame.draw.circle(screen, (255,0,0,0), (10, 10), 10)
+        
 
         # debug
         # pygame.draw.circle(screen, (255,0,0,0), (10, 10), 6)
@@ -320,9 +324,6 @@ class BasicGame(View):
                 break
         if found_cell is None:
             return
-        if button == 1 and not up:
-            found_cell.logic_cell.locked = True
-            found_cell.set_texture(CellStates.locked)
         if button == 3 and not up:
             self.on_cell_click(found_cell)
 
@@ -330,6 +331,23 @@ class BasicGame(View):
         if key == pygame.K_ESCAPE:
             self.deselect_cell()
             return
+        if key == pygame.K_e and not up:
+            self.editor = not self.editor
+            self.can_select_locked = self.editor
+            self.can_edit_locked = self.editor
+            return
+        if key == pygame.K_l and not up:
+            if self.selected_cell is None:
+                return
+            self.selected_cell:CellSprite
+            if self.selected_cell.logic_cell.locked:
+                self.selected_cell.logic_cell.locked = False
+                self.selected_cell.set_texture(CellStates.editable)
+                return
+            else:
+                self.selected_cell.logic_cell.locked = True
+                self.selected_cell.set_texture(CellStates.locked)
+                return
         if key == pygame.K_DELETE or key == pygame.K_BACKSPACE:
             if self.selected_cell is None:
                 return
@@ -374,7 +392,12 @@ class InfoMenu(View):
     def on_draw(self, screen):
         x = self.window.screen_size.width / 2
         self.draw_text(screen, x, 50, "First release 1.0.0", 50)
-        self.draw_text(screen, x, 200, """Dive into Sudoku Creation & Play\n\nSelect & Input: Use clicks or keyboard\nto choose cells. Fill with numeric keys.\n\nNavigation: Use arrow keys for smooth\ncell shifting.\n\nPuzzle Design - Locking: Press 'L' to\nlock/unlock cells for setting challenges.\n\nPlay: Press space to start.""", 22)
+        self.draw_text(screen, x, 80, "made by ChipperFluff", 25)
+        self.draw_text(screen, x, 250, """Dive into Sudoku creation and gameplay.\n\nSelect & Input: Choose cells with 
+mouse or keyboard\nand fill them using numeric keys.\n\nNavigation: Use arrow
+keys for smooth cell movement.\n\nPuzzle Design - Editor: Press 'E' to 
+toggle editor mode for creating or editing locked cells.\nThe red dot in the corner means editor mode active\n\nLocking: Press 'L' 
+to lock/unlock cells, setting up challenges.\n\nPlay: Hit space to start.""", 23)
 
 class Window(Window):
     def __init__(self, screen_size:Size):
