@@ -16,6 +16,7 @@ class CellStates(Enum):
     locked = "locked"
     select = "select"
     error = "error"
+    locked_error = "locked_error"
 
 class CellSprite:
     SIZE:Size = None
@@ -42,6 +43,7 @@ class CellSprite:
         textur_paths = {
             CellStates.editable: f'resources/imgs/editable_cell_{texture_setting["type"]}.png',
             CellStates.locked: f'resources/imgs/locked_cell_{texture_setting["type"]}.png',
+            CellStates.locked_error: f'resources/imgs/locked_error_cell_{texture_setting["type"]}.png',
             CellStates.select: f'resources/imgs/select_cell_{texture_setting["type"]}.png',
             CellStates.error: f'resources/imgs/error_cell_{texture_setting["type"]}.png',
         }
@@ -181,7 +183,11 @@ class BasicGame(View):
 
     def mark_errors(self, wrong_cells):
         for cell in wrong_cells:
-            if not cell.locked and not cell.sprite.selected:
+            if cell.sprite.selected:
+                continue
+            if cell.locked:
+                cell.sprite.cell_mode = CellStates.locked_error
+            else:
                 cell.sprite.cell_mode = CellStates.error
 
     def check_sections(self):
@@ -196,7 +202,11 @@ class BasicGame(View):
 
     def set_cells_to_editable(self):
         for cell in self.board.active_cells.values():
-            if not cell.locked and not cell.sprite.selected:
+            if cell.sprite.selected:
+                continue
+            if cell.locked:
+                cell.sprite.cell_mode = CellStates.locked
+            else:
                 cell.sprite.cell_mode = CellStates.editable
 
     def check_board(self):
