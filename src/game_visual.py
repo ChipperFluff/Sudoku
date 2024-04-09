@@ -38,6 +38,7 @@ class CellSprite:
         self._load_textures(texture_setting)
         self.create_surface()
         self.selected = False
+        self.changed = True
 
     def _load_textures(self, texture_setting:dict):
         textur_paths = {
@@ -67,10 +68,22 @@ class CellSprite:
                        (self.SIZE.height/2)-(self.text.get_height()/2))
         self.texture_surface.blit(self.text, text_pos.to_tuple)
 
+    def set_texture(self, new):
+        self.cell_mode = new
+        self.changed = True
+
+    def set_state(self, new):
+        self.logic_cell.state = new
+        self.changed = True
+
     def update(self):
+        if not self.changed:
+            return
+
         self.create_surface()
         if self.logic_cell.state is not None:
             self.set_char(self.logic_cell.state)
+        self.changed = False
 
     def draw(self):
         self.game.window.screen.blit(self.texture_surface, self.point_a.to_tuple)
@@ -186,9 +199,9 @@ class BasicGame(View):
             if cell.sprite.selected:
                 continue
             if cell.locked:
-                cell.sprite.cell_mode = CellStates.locked_error
+                cell.sprite.set_texture(CellStates.locked_error)
             else:
-                cell.sprite.cell_mode = CellStates.error
+                cell.sprite.set_texture(CellStates.error)
 
     def check_sections(self):
         for pos, section in self.board.sections.items():
@@ -205,9 +218,9 @@ class BasicGame(View):
             if cell.sprite.selected:
                 continue
             if cell.locked:
-                cell.sprite.cell_mode = CellStates.locked
+                cell.sprite.set_texture(CellStates.locked)
             else:
-                cell.sprite.cell_mode = CellStates.editable
+                cell.sprite.set_texture(CellStates.editable)
 
     def check_board(self):
         self.set_cells_to_editable()
@@ -237,9 +250,9 @@ class BasicGame(View):
 
         old_cell:CellSprite = self.selected_cell
         if old_cell is not None:
-            old_cell.cell_mode = CellStates.editable
+            old_cell.set_texture(CellStates.editable)
 
-        new_cell.cell_mode = CellStates.select
+        new_cell.set_texture(CellStates.select)
         self.selected_cell = new_cell
         self.selected_cell.selected = True
         self.check_board()
@@ -248,7 +261,7 @@ class BasicGame(View):
         if self.selected_cell is None:
             return
         self.selected_cell.selected = False
-        self.selected_cell.cell_mode = CellStates.editable
+        self.selected_cell.set_texture(CellStates.editable)
         self.selected_cell = None
         self.check_board()
 
@@ -309,7 +322,7 @@ class BasicGame(View):
             return
         if button == 1 and not up:
             found_cell.logic_cell.locked = True
-            found_cell.cell_mode = CellStates.locked
+            found_cell.set_texture(CellStates.locked)
         if button == 3 and not up:
             self.on_cell_click(found_cell)
 
@@ -320,7 +333,7 @@ class BasicGame(View):
         if key == pygame.K_DELETE or key == pygame.K_BACKSPACE:
             if self.selected_cell is None:
                 return
-            self.selected_cell.logic_cell.state = None
+            self.selected_cell.set_state(None)
             return
 
         if not up:
@@ -344,7 +357,7 @@ class BasicGame(View):
             return
         if self.selected_cell.logic_cell.locked and not self.can_edit_locked:
             return
-        self.selected_cell.logic_cell.state = num
+        self.selected_cell.set_state(num)
         self.check_board()
 
 class Window(Window):
